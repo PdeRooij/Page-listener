@@ -1,0 +1,2 @@
+Trigger;Target (url);Message
+Text or HTML elements to search for in an updated page;(Webhook) url to send a post request to after a page update satisfied the filter;Message to send along with the post request

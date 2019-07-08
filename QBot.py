@@ -30,6 +30,7 @@ import requests					# Handle HTML stuff
 from bs4 import BeautifulSoup	# Parse HTML stuff
 from datetime import datetime	# Handle time stuff
 import time						# Sleeping
+import traceback				# Print caught exceptions
 
 """
 Definition of the bot that is going to listen to Q.
@@ -82,7 +83,7 @@ class QBot():
 		# Infinite listening loop
 		while True:
 			# Refresh page and get latest track
-			latestTrack = self.soupy(self.sessy.get(self.url).content, 'html.parser').find('div', {'class': 'track'})
+			latestTrack = self.soupy(self.persistentGet().content, 'html.parser').find('div', {'class': 'track'})
 			
 			# Check if the latest track is new
 			if self.trackIsNew(lastTrack, latestTrack):
@@ -139,6 +140,26 @@ class QBot():
 		postContent = {'username': title, 'avatar_url': cover, 'content': message}
 		# Then post
 		self.sessy.post(hookURL, postContent)
+	
+	# Routine for trying to obtain a proper response to a get request
+	def persistentGet(self):
+		attempts = 1
+		response = self.sessy.get(self.url)
+		while not response.status_code and attempts < 80:
+			# No proper response yet, try again after five seconds
+			if attempts % 5 == 0:
+				# Display message every five failures (25 seconds)
+				print('Cannot get proper response from ' + self.url + '\nAttempts: ' + attempts + ', Response code: ' + response.status_code)
+			# Wait five seconds
+			time.sleep(5)
+			# Next attempt
+			response = self.sessy.get(self.url)
+			attempts += 1
+		
+		# At this point, either (1) a proper response is obtained, or (2) there have been 80 retries.
+		# Returning response either causes (1) normal continuation
+		# or (2) an exception. Both are acceptable.
+		return response
 
 
 # If executed, run bot function
@@ -149,6 +170,21 @@ if __name__ == '__main__':
 	bot.readTargets('targets.csv')
 	
 	# Run bot until process kill (CTRL-C)
-	bot.listenToQ()
+	while True:
+		# Keep listening, even if an error occurs, just restart
+		try:
+			bot.listenToQ()
+		except Exception as error:
+			# Print exception, try to send a notification and restart in 10 seconds
+			print(traceback.format_exc() + '\nListener crashed, re-establishing connection...')
+			try:
+				# Try to send a notification to the first target
+				bot.sessy.post(bot.targets[0]['target'], {'content': bot.targets[0]['message'] + '\nError! Opnieuw verbinding aan het maken...'})
+			except Exception as postErr:
+				# Unable to post notification, really time to restart
+				print(traceback.format_exc() + '\nCould not send notification of failure either :(...')
+				continue
+			time.sleep(10)	# Wait 10 seconds before restarting
+			continue
 	
 	#sys.exit(main(sys.argv[1:]))

@@ -76,9 +76,8 @@ class QBot():
 	def listenToQ(self):
 		# Connect first and store response
 		response = self.connect()
-		# Initialise variables
-		lastTrack = self.soupy(response.content, 'html.parser').find('div', {'class': 'track'})
-		lastTime = datetime.strptime(lastTrack['data-date'], '%Y-%m-%d %H:%M:%S')
+		# Set last to previous track, so at start the latest track is also printed
+		lastTrack = self.soupy(response.content, 'html.parser').find_all('div', {'class': 'track'})[1]
 		
 		# Infinite listening loop
 		while True:

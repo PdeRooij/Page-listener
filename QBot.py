@@ -1,30 +1,5 @@
 #!/usr/bin/env python
 
-"""A simple python script template.
-"""
-
-"""
-from __future__ import print_function
-import os
-import sys
-import argparse
-
-
-def main(arguments):
-
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('infile', help="Input file", type=argparse.FileType('r'))
-    parser.add_argument('-o', '--outfile', help="Output file",
-                        default=sys.stdout, type=argparse.FileType('w'))
-
-    args = parser.parse_args(arguments)
-
-    print(args)
-
-"""
-
 import csv
 import requests					# Handle HTML stuff
 from bs4 import BeautifulSoup	# Parse HTML stuff
@@ -34,7 +9,8 @@ import traceback				# Print caught exceptions
 
 """
 Definition of the bot that is going to listen to Q.
-Every new song is posted to a Discord webhook.
+A new song satisfying a target is posted to a Discord webhook.
+Targets and webhooks are defined in targets.csv
 """
 class QBot():
 	
@@ -187,4 +163,3 @@ if __name__ == '__main__':
 			time.sleep(10)	# Wait 10 seconds before restarting
 			continue
 	
-	#sys.exit(main(sys.argv[1:]))

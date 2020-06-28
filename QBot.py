@@ -96,7 +96,7 @@ class QBot():
 		# Check if the track satisfies a trigger
 		for target in self.targets:
 			# Loop through all targets and check if the track contains the trigger (case-insensitive)
-			if target['trigger'].lower() in title + ' ' + artist:
+			if target['trigger'].lower() in title.lower() + ' ' + artist.lower():
 				# Trigger satisfied, post notification
 				self.postNotification(target['target'], target['message'], trackTime, title, artist)
 		

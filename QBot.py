@@ -53,7 +53,7 @@ class QBot():
 		# Connect first and store response
 		response = self.connect()
 		# Set last to previous track, so at start the latest track is also printed
-		lastTrack = self.soupy(response.content, 'html.parser').find_all('div', {'class': 'track-block'})[1]	# First track-block is header, so second needed
+		lastTrack = self.soupy(response.content, 'html.parser').find_all('div', {'class': 'track-block'})[2]	# First track-block is header, so skip that
 		
 		# Infinite listening loop
 		while True:
@@ -77,7 +77,7 @@ class QBot():
 	
 	# Determines whether a track is new (later time)
 	def trackIsNew(self, prevTrack, curTrack):
-	# Playlist24 for some reason has time embedded between \n
+		# Playlist24 for some reason has time embedded between \n
 		lastTime = datetime.strptime(prevTrack.find('div', {'class': 'time'}).text, '\n%H:%M\n')
 		curTime = datetime.strptime(curTrack.find('div', {'class': 'time'}).text, '\n%H:%M\n')
 		return curTime > lastTime

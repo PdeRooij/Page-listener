@@ -16,12 +16,12 @@ class QBot():
 	
 	# Initialise with components and urls
 	def __init__(self):
-		self.sessy = requests.Session()					# Initialise session
-		self.soupy = BeautifulSoup						# For parsing responses
-		self.url = "https://qmusic.nl/playlist/qmusic"	# Url to get
-		self.sleepPeriod = 180							# By default, sleep for three minutes
-		self.targets = []								# List of targets (to be read from targets.csv)
-		self.message = 'Message'						# Message to post
+		self.sessy = requests.Session()						# Initialise session
+		self.soupy = BeautifulSoup							# For parsing responses
+		self.url = "https://playlist24.nl/qmusic-playlist/"	# Url to get
+		self.sleepPeriod = 180								# By default, sleep for three minutes
+		self.targets = []									# List of targets (to be read from targets.csv)
+		self.message = 'Message'							# Message to post
 	
 	# Reads the targets.csv file and stores a list where every element is a target dictionary.
 	# A target consists of a trigger, target and message.
@@ -44,9 +44,8 @@ class QBot():
 				self.targets.append({'trigger': row[0], 'target': row[1], 'message': row[2]})
 	
 	# Connect to the page
-	# Since Q has a cookie wall, we need to bypass that first in order to call it normally for the rest of the session
 	def connect(self):
-		return self.sessy.get('https://qmusic.nl/privacy/accept?originalUrl=/playlist/qmusic&pwv=1&pws=functional%7Canalytics%7Ccontent_recommendation%7Ctargeted_advertising%7Csocial_media&days=3650&referrer=')
+		return self.sessy.get(self.url)
 		
 	# This function indefinitely lets the bot listen for new songs on Q.
 	# If a new song is detected, post it to a webhook.
@@ -54,12 +53,12 @@ class QBot():
 		# Connect first and store response
 		response = self.connect()
 		# Set last to previous track, so at start the latest track is also printed
-		lastTrack = self.soupy(response.content, 'html.parser').find_all('div', {'class': 'track'})[1]
+		lastTrack = self.soupy(response.content, 'html.parser').find_all('div', {'class': 'track-block'})[1]	# First track-block is header, so second needed
 		
 		# Infinite listening loop
 		while True:
 			# Refresh page and get latest track
-			latestTrack = self.soupy(self.persistentGet().content, 'html.parser').find('div', {'class': 'track'})
+			latestTrack = self.soupy(self.persistentGet().content, 'html.parser').find_all('div', {'class': 'track-block'})[1]	# First track-block is header, so second needed
 			
 			# Check if the latest track is new
 			if self.trackIsNew(lastTrack, latestTrack):
@@ -78,18 +77,18 @@ class QBot():
 	
 	# Determines whether a track is new (later time)
 	def trackIsNew(self, prevTrack, curTrack):
-		lastTime = datetime.strptime(prevTrack['data-date'], '%Y-%m-%d %H:%M:%S')
-		curTime = datetime.strptime(curTrack['data-date'], '%Y-%m-%d %H:%M:%S')
+	# Playlist24 for some reason has time embedded between \n
+		lastTime = datetime.strptime(prevTrack.find('div', {'class': 'time'}).text, '\n%H:%M\n')
+		curTime = datetime.strptime(curTrack.find('div', {'class': 'time'}).text, '\n%H:%M\n')
 		return curTime > lastTime
 	
 	# Logic to determine what to do after an update, based on given targets (triggers)
 	# For Q, if a new track is recognised, it is printed and if it satisfies a trigger, a notification is posted
 	def handleUpdate(self, track):
 		# Extract relevant information
-		trackTime = track.find('span', {'class': 'time'}).text
-		title = track.find('span', {'class': 'track-name'}).text
-		artist = track.find('span', {'class': 'artist-name'}).text
-		img = track.find('img')['src']
+		trackTime = track.find('div', {'class': 'time'}).text
+		title = track.find('span', {'class': 'title'}).a.text
+		artist = track.find('span', {'class': 'artist'}).a.text
 		
 		# Print the new track first
 		self.printUpdate(trackTime, title, artist)
@@ -99,7 +98,7 @@ class QBot():
 			# Loop through all targets and check if the track contains the trigger (case-insensitive)
 			if any(target['trigger'].lower() in str(c).lower() for c in track.contents):
 				# Trigger satisfied, post notification
-				self.postNotification(target['target'], target['message'], trackTime, title, artist, img)
+				self.postNotification(target['target'], target['message'], trackTime, title, artist)
 		
 	# Prints an update to the console
 	# For a track the time, song title and artist name is printed
@@ -108,12 +107,12 @@ class QBot():
 		print(message)
 	
 	# Posts a notification to a provided webhook (url)
-	# For a track, the title becomes username, img becomes avatar and artist and time are included in the message
-	def postNotification(self, hookURL, msgStart, trackTime, title, artist, cover):
+	# For a track, the title becomes username, artist and time are included in the message
+	def postNotification(self, hookURL, msgStart, trackTime, title, artist):
 		# Prepare message to display
 		message = msgStart + '\nArtiest: {}\nTijd: {}'.format(artist, trackTime)
 		# Prepare data to include in post request
-		postContent = {'username': title, 'avatar_url': cover, 'content': message}
+		postContent = {'username': title, 'content': message}
 		# Then post
 		self.sessy.post(hookURL, postContent)
 	

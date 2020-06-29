@@ -3,7 +3,6 @@
 import csv
 import requests					# Handle HTML stuff
 from bs4 import BeautifulSoup	# Parse HTML stuff
-from datetime import datetime	# Handle time stuff
 import time						# Sleeping
 import traceback				# Print caught exceptions
 
@@ -19,6 +18,7 @@ class QBot():
 		self.sessy = requests.Session()						# Initialise session
 		self.soupy = BeautifulSoup							# For parsing responses
 		self.url = "https://playlist24.nl/qmusic-playlist/"	# Url to get
+		self.latestTime = ''								# Time of last track
 		self.sleepPeriod = 180								# By default, sleep for three minutes
 		self.targets = []									# List of targets (to be read from targets.csv)
 		self.message = 'Message'							# Message to post
@@ -50,22 +50,15 @@ class QBot():
 	# This function indefinitely lets the bot listen for new songs on Q.
 	# If a new song is detected, post it to a webhook.
 	def listenToQ(self):
-		# Connect first and store response
-		response = self.connect()
-		# Set last to previous track, so at start the latest track is also printed
-		lastTrack = self.soupy(response.content, 'html.parser').find_all('div', {'class': 'track-block'})[2]	# First track-block is header, so skip that
-		
 		# Infinite listening loop
 		while True:
 			# Refresh page and get latest track
 			latestTrack = self.soupy(self.persistentGet().content, 'html.parser').find_all('div', {'class': 'track-block'})[1]	# First track-block is header, so second needed
 			
 			# Check if the latest track is new
-			if self.trackIsNew(lastTrack, latestTrack):
+			if self.trackIsNew(latestTrack):
 				# There is a new track, let the update function handle it
 				self.handleUpdate(latestTrack)
-				# Set this track as last one
-				lastTrack = latestTrack
 				
 				# Reset sleeping period and sleep
 				self.sleepPeriod = 180
@@ -75,30 +68,28 @@ class QBot():
 				self.sleepPeriod = int(self.sleepPeriod / 3) + 10	# Set new sleeping period
 				time.sleep(self.sleepPeriod)						# Sleep for that period
 	
-	# Determines whether a track is new (later time)
-	def trackIsNew(self, prevTrack, curTrack):
+	# Determines whether a track is new (different time)
+	def trackIsNew(self, curTrack):
 		# Playlist24 for some reason has time embedded between \n
-		lastTime = datetime.strptime(prevTrack.find('div', {'class': 'time'}).text, '\n%H:%M\n')
-		curTime = datetime.strptime(curTrack.find('div', {'class': 'time'}).text, '\n%H:%M\n')
-		return curTime > lastTime
+		return curTrack.find('div', {'class': 'time'}).text.replace('\n', '') != self.latestTime
 	
 	# Logic to determine what to do after an update, based on given targets (triggers)
 	# For Q, if a new track is recognised, it is printed and if it satisfies a trigger, a notification is posted
 	def handleUpdate(self, track):
 		# Extract relevant information
-		trackTime = track.find('div', {'class': 'time'}).text
+		self.latestTime = track.find('div', {'class': 'time'}).text.replace('\n', '')	# Remove redundant newlines
 		title = track.find('span', {'class': 'title'}).a.text
 		artist = track.find('span', {'class': 'artist'}).a.text
 		
 		# Print the new track first
-		self.printUpdate(trackTime, title, artist)
+		self.printUpdate(self.latestTime, title, artist)
 		
 		# Check if the track satisfies a trigger
 		for target in self.targets:
 			# Loop through all targets and check if the track contains the trigger (case-insensitive)
 			if target['trigger'].lower() in title.lower() + ' ' + artist.lower():
 				# Trigger satisfied, post notification
-				self.postNotification(target['target'], target['message'], trackTime, title, artist)
+				self.postNotification(target['target'], target['message'], self.latestTime, title, artist)
 		
 	# Prints an update to the console
 	# For a track the time, song title and artist name is printed

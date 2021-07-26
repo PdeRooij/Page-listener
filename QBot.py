@@ -48,7 +48,7 @@ class QBot:
                 # Put row contents into dictionary
                 rowDict = {'trigger': row[0], 'target': row[1], 'message': row[2]}
                 # Print what was read
-                print("Read target that is triggered by '{}', sends a notification to '{}' with message '{}'".format( \
+                print("Read target that is triggered by '{}', sends a notification to '{}' with message '{}'".format(
                     rowDict['trigger'], rowDict['target'], rowDict['message']))
                 # Add the target to the internal targets
                 self.targets.append({'trigger': row[0], 'target': row[1], 'message': row[2]})
@@ -110,8 +110,14 @@ class QBot:
             # Loop through all targets and check if the track contains the trigger (case-insensitive)
             if target['trigger'].lower() in title.lower() + ' ' + artist.lower():
                 # Trigger satisfied, post notification
-                self.postNotification(target['target'], target['message'], track.thumbnail_url(),
-                                      playtime, title, artist)
+                try:
+                    # Usually post with thumbnail, but there is a possibility there is no thumbnail
+                    self.postNotification(target['target'], target['message'],
+                                          playtime, title, artist, track.thumbnail_url())
+                except KeyError as _:
+                    # There is no thumbnail, so don't try to post it
+                    self.postNotification(target['target'], target['message'],
+                                          playtime, title, artist)
 
     def printUpdate(self, trackTime, title, artist):
         """
@@ -126,7 +132,7 @@ class QBot:
         message = 'Nieuw liedje:\nTijd: {}\nTitel: {}\nArtiest: {}'.format(trackTime, title, artist)
         print(message)
 
-    def postNotification(self, hookURL, msgStart, thumbnail, trackTime, title, artist):
+    def postNotification(self, hookURL, msgStart, trackTime, title, artist, thumbnail=None):
         """
         Posts a notification to a provided webhook (url).
         For a track, the title becomes username, thumbnail the avatar,
@@ -143,7 +149,12 @@ class QBot:
         # Prepare message to display
         message = msgStart + '\nArtiest: {}\nTijd: {}'.format(artist, trackTime)
         # Prepare data to include in post request
-        postContent = {'username': title, 'avatar_url': thumbnail, 'content': message}
+        if thumbnail:
+            # If a thumbnail is provided, include it
+            postContent = {'username': title, 'avatar_url': thumbnail, 'content': message}
+        else:
+            # No thumbnail, so don't include it
+            postContent = {'username': title, 'content': message}
         # Then post
         self.sessy.post(hookURL, postContent)
 
